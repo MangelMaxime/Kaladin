@@ -5,6 +5,8 @@ open Fable.Helpers.React
 open Fable.Helpers.React.Props
 open Fulma
 open Fulma.FontAwesome
+open Fable.PowerPack
+open Fable.PowerPack.Fetch
 
 type Model =
     { Value : string }
@@ -20,28 +22,8 @@ let private update msg model =
         { model with Value = newValue }, Cmd.none
 
 let private view model dispatch =
-    Hero.hero [ Hero.IsFullHeight ]
-        [ Hero.body [ ]
-            [ Container.container [ ]
-                [ Columns.columns [ Columns.CustomClass "has-text-centered" ]
-                    [ Column.column [ Column.Width(Column.All, Column.IsOneThird)
-                                      Column.Offset(Column.All, Column.IsOneThird) ]
-                        [ Image.image [ Image.Is128x128
-                                        Image.Props [ Style [ Margin "auto"] ] ]
-                            [ img [ Src "assets/fulma_logo.svg" ] ]
-                          Field.div [ ]
-                            [ Label.label [ ]
-                                [ str "Enter your name" ]
-                              Control.div [ ]
-                                [ Input.text [ Input.OnChange (fun ev -> dispatch (ChangeValue ev.Value))
-                                               Input.Value model.Value
-                                               Input.Props [ AutoFocus true ] ] ] ]
-                          Content.content [ ]
-                            [ str "Hello, "
-                              str model.Value
-                              str " "
-                              Icon.faIcon [ ]
-                                [ Fa.icon Fa.I.SmileO ] ] ] ] ] ] ]
+    Navbar.navbar [ ]
+        [ ]
 
 open Elmish.React
 open Elmish.Debug
@@ -51,8 +33,48 @@ Program.mkProgram init update view
 #if DEBUG
 |> Program.withHMR
 #endif
-|> Program.withReactUnoptimized "elmish-app"
+|> Program.withReactUnoptimized "kaladin"
 #if DEBUG
 |> Program.withDebugger
 #endif
 |> Program.run
+
+type RouterMode =
+    | Hash
+    | History
+
+type LandingConfig =
+    { Title : string
+      Description : string }
+
+type PageConfig =
+    { Title : string
+      Path : string }
+
+type DocConfig =
+    { Title : string
+      Children : PageConfig list }
+
+type Config =
+    { RouterMode : RouterMode
+      Landing : LandingConfig
+      Navbar : PageConfig list
+      Docs : DocConfig list }
+
+let kaladin (config : Config) =
+    ()
+
+kaladin
+    { RouterMode = Hash
+      Landing =
+        { Title = "Kaladin"
+          Description = "Opiniated documentation sites" }
+      Navbar =
+        [
+          { Title = "Home"
+            Path = "/" }
+        ]
+      Docs =
+        [
+
+        ] }
