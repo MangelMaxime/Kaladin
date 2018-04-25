@@ -2,13 +2,9 @@ source https://www.nuget.org/api/v2
 storage:none
 framework: netstandard2.0
 
+nuget Fable.Import.Node
 nuget FSharp.Core redirects:force
 nuget Fable.Core
-nuget Fable.Elmish
-nuget Fable.Elmish.React
-nuget Fable.Elmish.Browser
-nuget Fable.Elmish.Debugger
-nuget Fable.Elmish.HMR
 nuget Fable.React
 nuget Fulma prerelease
 nuget Thoth.Json

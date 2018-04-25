@@ -9,3 +9,5 @@ bin/
 output/
 .fake/
 temp/
+
+src/build
