@@ -1,12 +1,9 @@
 module App.View
 
-open Elmish
 open Fable.Helpers.React
 open Fable.Helpers.React.Props
 open Fulma
 open Fulma.FontAwesome
-open Fable.PowerPack
-open Fable.PowerPack.Fetch
 
 type LandingColumn =
     { Title : string

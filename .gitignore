@@ -11,3 +11,5 @@ output/
 temp/
 
 src/build
+
+yarn-error\.log
