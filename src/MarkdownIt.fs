@@ -11,4 +11,4 @@ type MarkdownIt =
 type MarkdownItStatic =
     [<Emit("new $0()")>] abstract Create: unit -> MarkdownIt
 
-let markdownIt : MarkdownItStatic = importAll "markdown-it"
+let markdownIt : MarkdownItStatic = importDefault "markdown-it"

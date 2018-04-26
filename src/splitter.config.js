@@ -14,7 +14,7 @@ var babelOptions = fableUtils.resolveBabelOptions({
 
 module.exports = {
     entry: resolve("Kaladin.fsproj"),
-    outDir: resolve("build"),
+    outDir: resolve("../temp"),
     babel: babelOptions,
     fable: { define: isProduction ? [] : ["DEBUG"], }
 };

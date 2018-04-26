@@ -14,7 +14,8 @@ open Fake.JavaScript
 Target.create "Clean" (fun _ ->
     !! "src/bin"
     ++ "src/obj"
-    ++ "src/build"
+    ++ "temp"
+    ++ "docs"
     |> Seq.iter Shell.cleanDir
 )
 
@@ -64,7 +65,7 @@ let generateHtml _ =
         Process.execSimple
             (fun p ->
                 { p with FileName = "node"
-                         Arguments = "src/build/App.js" })
+                         Arguments = "temp/App.js" })
             timeout
 
     if result <> 0 then
@@ -78,10 +79,15 @@ Target.create "Watch" (fun _ ->
         Debounce(800, false, generateHtml)
 
     // Make sure the directory exist for the watcher
-    Directory.ensure "src/build/"
+    Directory.ensure "temp/"
 
-    use watcher =
-        !! "src/build/**/*.js"
+    use watcherJs =
+        !! "temp/**/*.js"
+        |> ChangeWatcher.run
+            (fun _ -> debouncer.Bounce())
+
+    use watcherContent =
+        !! "content/**/*"
         |> ChangeWatcher.run
             (fun _ -> debouncer.Bounce())
 
@@ -97,20 +103,23 @@ Target.create "Watch" (fun _ ->
         }
 
         async {
+            // Force a force generation of the style
+            Yarn.exec "node-sass --output-style compressed --output docs/ src/scss/style.scss" id
+            // Watch style for changes
             Yarn.exec "node-sass --output-style compressed --watch --output docs/ src/scss/style.scss" id
         }
         async {
             Yarn.exec
-                "live-server --port=8000 --watch=docs"
-                (fun o ->
-                    { o with WorkingDirectory = __SOURCE_DIRECTORY__ </> "docs" })
+                "live-server --port=8000 --watch=docs docs"
+                id
         }
     ]
     |> Async.Parallel
     |> Async.RunSynchronously
     |> ignore
 
-    watcher.Dispose()
+    watcherJs.Dispose()
+    watcherContent.Dispose()
 )
 
 // Build order
@@ -119,8 +128,8 @@ Target.create "Watch" (fun _ ->
     ==> "YarnInstall"
     ==> "Build"
 
-// "Watch"
-//     <== [ "YarnInstall" ]
+"Watch"
+    <== [ "YarnInstall" ]
 
 // start build
 Target.runOrDefault "Build"
