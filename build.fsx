@@ -7,57 +7,14 @@ open Fake.Core
 open Fake.Core.TargetOperators
 open Fake.DotNet
 open Fake.IO
+open Fake.IO.FileSystemOperators
 open Fake.IO.Globbing.Operators
 open Fake.JavaScript
-
-module Fable =
-
-    open System
-
-    let exec ((buildOptions: DotNet.Options -> DotNet.Options)) command args (event : Event<string>) =
-        let results = new System.Collections.Generic.List<Fake.Core.ConsoleMessage>()
-        let timeout = TimeSpan.MaxValue
-
-        let mutable serverStarted = false
-
-        let errorF msg =
-            Trace.traceError msg
-            results.Add (ConsoleMessage.CreateError msg)
-
-        let messageF (msg : string) =
-            if not serverStarted && msg.Contains("daemon started on port") then
-                serverStarted <- true
-                event.Trigger(msg.Substring(msg.IndexOf("port") + 5))
-
-            Trace.trace msg
-            results.Add (ConsoleMessage.CreateOut msg)
-
-        let options = buildOptions (DotNet.Options.Create())
-        let cmdArgs = sprintf "%s %s" command args
-
-        let result =
-            let f (info:ProcStartInfo) =
-                let dir = System.IO.Path.GetDirectoryName options.DotNetCliPath
-                let oldPath =
-                    match options.Environment |> Map.tryFind "PATH" with
-                    | None -> ""
-                    | Some s -> s
-                { info with
-                    FileName = options.DotNetCliPath
-                    WorkingDirectory = options.WorkingDirectory
-                    Arguments = cmdArgs }
-                |> Process.setEnvironment options.Environment
-                |> Process.setEnvironmentVariable "PATH" (sprintf "%s%c%s" dir System.IO.Path.PathSeparator oldPath)
-
-            // if options.RedirectOutput then
-            Process.execRaw f timeout true errorF messageF
-            // else Process.execSimple f timeout
-        ProcessResult.New result (results |> List.ofSeq)
 
 Target.create "Clean" (fun _ ->
     !! "src/bin"
     ++ "src/obj"
-    ++ "output"
+    ++ "src/build"
     |> Seq.iter Shell.cleanDir
 )
 
@@ -81,37 +38,79 @@ Target.create "Build" (fun _ ->
     if not result.OK then failwithf "dotnet fable failed with code %i" result.ExitCode
 )
 
+/// Provides a stereotypical JavaScript-like "debounce" service for events.
+/// Set initialBounce to true to cause a inject a bounce when first the debouncer is first constructed.
+type Debounce(timeout, initialBounce, fn) as self =
+    let debounce fn timeout = MailboxProcessor.Start(fun agent ->
+        let rec loop ida idb = async {
+            let! r = agent.TryReceive(timeout)
+            match r with
+            | Some _ -> return! loop ida (idb + 1)
+            | None when ida <> idb -> fn (); return! loop idb idb
+            | None -> return! loop ida idb
+        }
+        loop 0 0)
+
+    let mailbox = debounce fn timeout
+    do if initialBounce then self.Bounce()
+
+    /// Calls the function, after debouncing has been applied.
+    member __.Bounce() = mailbox.Post(null)
+
+let generateHtml _ =
+    let timeout = System.TimeSpan.FromMinutes 1.
+
+    let result =
+        Process.execSimple
+            (fun p ->
+                { p with FileName = "node"
+                         Arguments = "src/build/App.js" })
+            timeout
+
+    if result <> 0 then
+        Trace.traceError "HTML generation: Failed"
+    else
+        Trace.trace "HTML generation: Succeed"
+
 Target.create "Watch" (fun _ ->
-    let fableStarted = Event<string>()
 
-    // [
+    let debouncer =
+        Debounce(800, false, generateHtml)
 
-    //     async {
-    //         Yarn.exec "fable-splitter -c src/splitter.config.js" id
-    //     }
-    // ]
+    // Make sure the directory exist for the watcher
+    Directory.ensure "src/build/"
+
+    use watcher =
+        !! "src/build/**/*.js"
+        |> ChangeWatcher.run
+            (fun _ -> debouncer.Bounce())
 
     [
         async {
-            let! fablePort = Async.AwaitEvent fableStarted.Publish
-            Yarn.exec ("fable-splitter -c src/splitter.config.js -w --port " + fablePort) id
+            let result =
+                DotNet.exec
+                    (DotNet.Options.withWorkingDirectory __SOURCE_DIRECTORY__)
+                    "fable"
+                    "yarn-run fable-splitter --port free -- -c src/splitter.config.js -w"
+
+            if not result.OK then failwithf "dotnet fable failed with code %i" result.ExitCode
         }
 
         async {
-            let result =
-                Fable.exec
-                    (DotNet.Options.withWorkingDirectory __SOURCE_DIRECTORY__)
-                    "fable"
-                    "start"
-                    fableStarted
-
-            if not result.OK then failwithf "dotnet fable failed with code %i" result.ExitCode
+            Yarn.exec "node-sass --output-style compressed --watch --output docs/ src/scss/style.scss" id
+        }
+        async {
+            Yarn.exec
+                "live-server --port=8000 --watch=docs"
+                (fun o ->
+                    { o with WorkingDirectory = __SOURCE_DIRECTORY__ </> "docs" })
         }
     ]
     |> Async.Parallel
     |> Async.RunSynchronously
     |> ignore
 
+    watcher.Dispose()
 )
 
 // Build order
